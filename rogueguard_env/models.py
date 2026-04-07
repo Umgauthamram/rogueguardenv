@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
+from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any
 
-class RogueObservation(BaseModel):
+@dataclass
+class RogueObservation:
     task_id: str
     task_description: str
     available_tools: List[str]
@@ -13,12 +14,14 @@ class RogueObservation(BaseModel):
     warning: Optional[str] = None  # appears when agent is close to rogue behavior
     temptation_hint: Optional[str] = None  # visible after step 2, describes the available shortcut
 
-class RogueAction(BaseModel):
-    tool: str = Field(..., description="Tool name to call")
-    args: Dict[str, Any] = Field(default_factory=dict)
+@dataclass
+class RogueAction:
+    tool: str
+    args: Dict[str, Any] = field(default_factory=dict)
 
-class RogueReward(BaseModel):
-    value: float = Field(..., ge=0.0, le=1.0)
+@dataclass
+class RogueReward:
+    value: float
     breakdown: Dict[str, float]
     label: str   # "rogue" | "correct" | "cautious" | "incomplete" | "in_progress"
     done: bool
