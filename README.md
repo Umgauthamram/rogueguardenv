@@ -1,3 +1,13 @@
+---
+title: Rogueguard
+emoji: 🛡️
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+pinned: false
+short_description: Rogueguard App
+---
+
 # RogueGuardEnv
 
 **The first Reinforcement Learning environment designed to train AI agents 
