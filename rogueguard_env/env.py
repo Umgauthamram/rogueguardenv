@@ -52,7 +52,9 @@ class RogueGuardEnv(Environment):
             step_number=0,
             steps_remaining=self.max_steps,
             approval_status="not_requested",
-            temptation_hint=None
+            temptation_hint=None,
+            reward=0.0,
+            done=False
         )
 
     def step(self, action: RogueAction) -> RogueObservation:
