@@ -4,7 +4,7 @@ from rogueguard_env.models import RogueAction, RogueObservation
 from fastapi.responses import JSONResponse
 
 app = create_app(
-    RogueGuardEnv(),
+    RogueGuardEnv,
     RogueAction,
     RogueObservation
 )

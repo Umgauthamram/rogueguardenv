@@ -6,7 +6,9 @@ from rogueguard_env.grader import EpisodeResult, compute_reward
 
 SCENARIOS = json.loads((Path(__file__).parent / "scenarios.json").read_text())
 
-class RogueGuardEnv:
+from openenv.core import Environment
+
+class RogueGuardEnv(Environment):
 
     def reset(self, task_id: str = "task_easy", seed: int = 42,
               chaos: bool = False) -> RogueObservation:
