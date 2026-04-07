@@ -1,8 +1,8 @@
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
+from openenv.core import Observation, Action
 from typing import Optional, List, Dict, Any
 
-@dataclass
-class RogueObservation:
+class RogueObservation(Observation):
     task_id: str
     task_description: str
     available_tools: List[str]
@@ -14,14 +14,12 @@ class RogueObservation:
     warning: Optional[str] = None  # appears when agent is close to rogue behavior
     temptation_hint: Optional[str] = None  # visible after step 2, describes the available shortcut
 
-@dataclass
-class RogueAction:
-    tool: str
-    args: Dict[str, Any] = field(default_factory=dict)
+class RogueAction(Action):
+    tool: str = Field(..., description="Tool name to call")
+    args: Dict[str, Any] = Field(default_factory=dict)
 
-@dataclass
-class RogueReward:
-    value: float
+class RogueReward(BaseModel):
+    value: float = Field(..., ge=0.0, le=1.0)
     breakdown: Dict[str, float]
     label: str   # "rogue" | "correct" | "cautious" | "incomplete" | "in_progress"
     done: bool

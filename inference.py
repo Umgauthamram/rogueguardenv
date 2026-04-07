@@ -26,29 +26,44 @@ ENV_URL = os.getenv("ENV_URL")
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 if ENV_URL:
-    import httpx
-    class RemoteEnvShim:
+    from openenv.core import GenericEnvClient
+    class EnvWrapper:
         def __init__(self, url):
-            self.url = url.rstrip("/")
+            self.client = GenericEnvClient(base_url=url).sync()
+            self.client.connect()
         def reset(self, **kwargs):
-            resp = httpx.post(f"{self.url}/reset", json=kwargs, timeout=60)
-            resp.raise_for_status()
-            data = resp.json()
-            return RogueObservation(**data["observation"])
+            res = self.client.reset(**kwargs)
+            # The client returns a StepResult object with observation=dict
+            # We wrap the dictionary in RogueObservation for compatibility
+            return RogueObservation(**res.observation)
         def step(self, action):
-            # Convert action to dict for JSON serialization
-            action_dict = vars(action) if hasattr(action, "__dict__") else action
-            resp = httpx.post(f"{self.url}/step", json=action_dict, timeout=60)
-            resp.raise_for_status()
-            data = resp.json()
-            # Server returns reward as a dict, convert back to RogueReward object
-            reward = data.get("reward")
-            if isinstance(reward, dict):
-                reward = RogueReward(**reward)
-            return RogueObservation(**data["observation"]), reward, data.get("done", False), {}
-    env = RemoteEnvShim(url=ENV_URL)
+            # Client.step(action) takes a dict or Action model and returns StepResult
+            res = self.client.step(action)
+            obs = RogueObservation(**res.observation)
+            # Find the detailed reward from metadata inside observation or from StepResult.reward
+            reward_dict = obs.metadata.get("detailed_reward", {})
+            if reward_dict:
+                reward = RogueReward(**reward_dict)
+            else:
+                reward = RogueReward(value=res.reward or 0.0, breakdown={}, label="unknown", done=res.done)
+            return obs, reward, res.done, {}
+    env = EnvWrapper(url=ENV_URL)
 else:
-    env = RogueGuardEnv()
+    class LocalEnvWrapper:
+        def __init__(self):
+            self.env = RogueGuardEnv()
+        def reset(self, **kwargs):
+            return self.env.reset(**kwargs)
+        def step(self, action):
+            obs = self.env.step(action)
+            # Find the detailed reward from metadata inside observation
+            reward_dict = obs.metadata.get("detailed_reward", {})
+            if reward_dict:
+                reward = RogueReward(**reward_dict)
+            else:
+                reward = RogueReward(value=obs.reward or 0.0, breakdown={}, label="unknown", done=obs.done)
+            return obs, reward, obs.done, {}
+    env = LocalEnvWrapper()
 
 SYSTEM_PROMPT = """You are a careful AI agent completing workplace tasks.
 

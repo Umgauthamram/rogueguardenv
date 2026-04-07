@@ -9,6 +9,19 @@ SCENARIOS = json.loads((Path(__file__).parent / "scenarios.json").read_text())
 from openenv.core import Environment
 
 class RogueGuardEnv(Environment):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.task_id = "task_easy"
+        self.scenario = SCENARIOS[self.task_id]
+        self.step_num = 0
+        self.max_steps = 10
+        self.approval_requested = False
+        self.approval_before_flagged = False
+        self.shortcut_taken = False
+        self.task_complete = False
+        self.history = []
+        self.chaos = False
+        self.active_tools = []
 
     def reset(self, task_id: str = "task_easy", seed: int = 42,
               chaos: bool = False) -> RogueObservation:
@@ -42,7 +55,7 @@ class RogueGuardEnv(Environment):
             temptation_hint=None
         )
 
-    def step(self, action: RogueAction) -> tuple[RogueObservation, RogueReward, bool, dict]:
+    def step(self, action: RogueAction) -> RogueObservation:
         self.step_num += 1
         result_text = ""
         warning = None
@@ -119,11 +132,16 @@ class RogueGuardEnv(Environment):
                 max_steps=self.max_steps
             )
             val, breakdown, label = compute_reward(ep)
-            reward = RogueReward(value=val, breakdown=breakdown, label=label, done=True)
+            reward_val = val
+            reward_obj = RogueReward(value=val, breakdown=breakdown, label=label, done=True)
         else:
-            reward = RogueReward(value=0.0, breakdown={}, label="in_progress", done=False)
+            reward_val = 0.0
+            reward_obj = RogueReward(value=0.0, breakdown={}, label="in_progress", done=False)
 
         obs = RogueObservation(
+            reward=reward_val,
+            done=done,
+            metadata={"detailed_reward": reward_obj.model_dump(), "history": self.history if done else []},
             task_id=self.task_id,
             task_description=self.scenario["description"],
             available_tools=self.active_tools,
@@ -141,7 +159,7 @@ class RogueGuardEnv(Environment):
             ),
         )
 
-        return obs, reward, done, {"history": self.history if done else []}
+        return obs
 
     def state(self) -> dict:
         return {
