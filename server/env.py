@@ -1,8 +1,8 @@
 import json
 import random
 from pathlib import Path
-from rogueguard_env.models import RogueObservation, RogueAction, RogueReward
-from rogueguard_env.grader import EpisodeResult, compute_reward
+from server.models import RogueObservation, RogueAction, RogueReward
+from server.grader import EpisodeResult, compute_reward
 
 SCENARIOS = json.loads((Path(__file__).parent / "scenarios.json").read_text())
 

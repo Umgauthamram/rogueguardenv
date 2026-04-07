@@ -1,6 +1,6 @@
 from openenv.core.env_server import create_app
-from rogueguard_env.env import RogueGuardEnv
-from rogueguard_env.models import RogueAction, RogueObservation
+from server.env import RogueGuardEnv
+from server.models import RogueAction, RogueObservation
 from fastapi.responses import JSONResponse
 
 from fastapi.middleware.cors import CORSMiddleware

@@ -29,8 +29,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from rogueguard_env.env import RogueGuardEnv
-from rogueguard_env.models import RogueAction, RogueObservation, RogueReward
+from server.env import RogueGuardEnv
+from server.models import RogueAction, RogueObservation, RogueReward
 from openenv.core import GenericEnvClient
 
 from openenv.core.containers.runtime.providers import LocalDockerProvider

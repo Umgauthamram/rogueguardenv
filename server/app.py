@@ -1,6 +1,6 @@
 import uvicorn
 import os
-from rogueguard_env.server import app
+from server.server import app
 
 def main():
     port = int(os.getenv("PORT", 7860))
