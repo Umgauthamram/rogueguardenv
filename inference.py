@@ -28,6 +28,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 load_dotenv()
+import sys
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from server.env import RogueGuardEnv
 from server.models import RogueAction, RogueObservation, RogueReward
@@ -93,9 +95,12 @@ async def run_task(task_id: str, client: OpenAI, env_client: Any, seed: int = 42
     res = await env_client.reset(task_id=task_id, seed=seed)
     
     # GenericEnvClient.reset returns a StepResult
-    # StepResult.observation is usually a dict if coming from the wire
-    obs_dict = res.observation
-    obs = RogueObservation(**obs_dict)
+    obs_data = res.observation
+    if not isinstance(obs_data, dict):
+        # Handle cases where observation is already a model instance
+        obs = obs_data
+    else:
+        obs = RogueObservation(**obs_data)
 
     log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
     
@@ -133,7 +138,13 @@ async def run_task(task_id: str, client: OpenAI, env_client: Any, seed: int = 42
         
         # Step environment
         res = await env_client.step(action)
-        obs = RogueObservation(**res.observation)
+        
+        obs_data = res.observation
+        if not isinstance(obs_data, dict):
+            obs = obs_data
+        else:
+            obs = RogueObservation(**obs_data)
+            
         reward_val = res.reward or 0.0
         done = res.done
 
@@ -163,27 +174,59 @@ async def run_task(task_id: str, client: OpenAI, env_client: Any, seed: int = 42
     return score
 
 async def main():
-    client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-    
-    # Initialize environment
-    if ENV_URL:
-        # Remote environment
-        env_client = GenericEnvClient(base_url=ENV_URL)
-        await env_client.connect()
-    else:
-        # Local environment from Docker image
-        env_client = await GenericEnvClient.from_docker_image(LOCAL_IMAGE_NAME)
-        # Note: from_docker_image might returns an env instance that is already connected/ready
+    print(f"--- Starting RogueGuard Inference (Phase 2) ---", flush=True)
+    try:
+        # Check API key configuration explicitly
+        api_key = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("[FATAL] NO API KEY FOUND. Please set HF_TOKEN, API_KEY or OPENAI_API_KEY.", flush=True)
+            return
 
-    TASKS = ["task_easy", "task_medium", "task_hard"]
-    
-    for task_id in TASKS:
-        try:
-            await run_task(task_id, client, env_client)
-        except Exception as e:
-            print(f"[DEBUG] Task {task_id} failed: {e}", flush=True)
-    
-    await env_client.close()
+        client = OpenAI(base_url=API_BASE_URL, api_key=api_key)
+        
+        # Initialize environment
+        env_client = None
+        if ENV_URL:
+            # Remote environment
+            print(f"[DEBUG] Connecting to remote environment at {ENV_URL}...", flush=True)
+            env_client = GenericEnvClient(base_url=ENV_URL)
+            await env_client.connect()
+        else:
+            # Local environment from Docker image
+            print(f"[DEBUG] Starting local environment from image '{LOCAL_IMAGE_NAME}'...", flush=True)
+            try:
+                env_client = await GenericEnvClient.from_docker_image(LOCAL_IMAGE_NAME)
+            except Exception as e:
+                print(f"[DEBUG] Local Docker image startup failed: {e}", flush=True)
+                print("[DEBUG] Fallback: connect to http://localhost:7860 directly", flush=True)
+                env_client = GenericEnvClient(base_url="http://localhost:7860")
+                await env_client.connect()
+
+        if not env_client:
+            print("[FATAL] Failed to initialize environment client.", flush=True)
+            return
+
+        TASKS = ["task_easy", "task_medium", "task_hard"]
+        print(f"[INFO] Running tasks: {TASKS}", flush=True)
+        
+        for task_id in TASKS:
+            try:
+                print(f"\n[TASK] Starting {task_id}", flush=True)
+                await run_task(task_id, client, env_client)
+            except Exception as e:
+                print(f"[ERROR] Task {task_id} failed with exception: {str(e)}", flush=True)
+                import traceback
+                traceback.print_exc()
+        
+        print("\n[INFO] Closing environment connection...", flush=True)
+        await env_client.close()
+        print("--- Inference Complete ---", flush=True)
+
+    except Exception as e:
+        print(f"[FATAL] Unhandled exception in main: {str(e)}", flush=True)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -13,6 +13,12 @@ class RogueObservation(Observation):
     last_tool_result: Optional[str] = None
     warning: Optional[str] = None  # appears when agent is close to rogue behavior
     temptation_hint: Optional[str] = None  # visible after step 2, describes the available shortcut
+    reward: Optional[float] = 0.0
+    done: Optional[bool] = False
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
+    class Config:
+        extra = "allow"
 
 class RogueAction(Action):
     tool: str = Field(..., description="Tool name to call")
