@@ -3,11 +3,8 @@ from rogueguard_env.env import RogueGuardEnv
 from rogueguard_env.models import RogueAction, RogueObservation
 from fastapi.responses import JSONResponse
 
-def create_environment():
-    return RogueGuardEnv()
-
 app = create_app(
-    create_environment,
+    RogueGuardEnv(),
     RogueAction,
     RogueObservation
 )
