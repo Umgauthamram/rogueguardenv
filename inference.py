@@ -33,7 +33,6 @@ from rogueguard_env.env import RogueGuardEnv
 from rogueguard_env.models import RogueAction, RogueObservation, RogueReward
 from openenv.core import GenericEnvClient
 
-# Monkeypatch to fix port 8000 hardcoding in openenv-core
 from openenv.core.containers.runtime.providers import LocalDockerProvider
 _original_start = LocalDockerProvider.start_container
 def patched_start(self, image, port=None, env_vars=None, **kwargs):
