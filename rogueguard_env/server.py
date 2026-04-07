@@ -1,4 +1,4 @@
-from openenv_core.env_server import create_app
+from openenv.core.env_server import create_app
 from rogueguard_env.env import RogueGuardEnv
 from rogueguard_env.models import RogueAction, RogueObservation
 from fastapi.responses import JSONResponse

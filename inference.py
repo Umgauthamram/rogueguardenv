@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from rogueguard_env.env import RogueGuardEnv
-from rogueguard_env.models import RogueAction
+from rogueguard_env.models import RogueAction, RogueObservation, RogueReward
 
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
 API_KEY = (
@@ -26,8 +26,27 @@ ENV_URL = os.getenv("ENV_URL")
 client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
 
 if ENV_URL:
-    from openenv_core.remote_env import RemoteEnv
-    env = RemoteEnv(url=ENV_URL)
+    import httpx
+    class RemoteEnvShim:
+        def __init__(self, url):
+            self.url = url.rstrip("/")
+        def reset(self, **kwargs):
+            resp = httpx.post(f"{self.url}/reset", json=kwargs, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            return RogueObservation(**data["observation"])
+        def step(self, action):
+            # Convert action to dict for JSON serialization
+            action_dict = vars(action) if hasattr(action, "__dict__") else action
+            resp = httpx.post(f"{self.url}/step", json=action_dict, timeout=60)
+            resp.raise_for_status()
+            data = resp.json()
+            # Server returns reward as a dict, convert back to RogueReward object
+            reward = data.get("reward")
+            if isinstance(reward, dict):
+                reward = RogueReward(**reward)
+            return RogueObservation(**data["observation"]), reward, data.get("done", False), {}
+    env = RemoteEnvShim(url=ENV_URL)
 else:
     env = RogueGuardEnv()
 
