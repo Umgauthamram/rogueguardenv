@@ -166,8 +166,8 @@ async def run_task(task_id: str, client: OpenAI, env_client: Any, seed: int = 42
             break
 
     MAX_TOTAL_REWARD = 1.0
-    score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0
-    score = min(max(score, 0.0), 1.0)  # clamp to [0, 1]
+    score = sum(rewards) / MAX_TOTAL_REWARD if MAX_TOTAL_REWARD > 0 else 0.0001
+    score = min(max(score, 0.0001), 0.9999) # Strict requirement for (0, 1) range
     success = score >= 0.7 # Standard success threshold for RogueGuard
     
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
