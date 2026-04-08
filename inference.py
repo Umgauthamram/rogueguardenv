@@ -44,7 +44,7 @@ def patched_start(self, image, port=None, env_vars=None, **kwargs):
     cmd = ["docker", "run", "-d", "--name", self._container_name, "-p", f"{port}:7860", image]
     res = subprocess.run(cmd, capture_output=True, text=True, check=True)
     self._container_id = res.stdout.strip()
-    time.sleep(1)
+    time.sleep(5) # Give container time to boot FastAPI server
     return f"http://localhost:{port}"
 LocalDockerProvider.start_container = patched_start
 
@@ -137,8 +137,16 @@ async def run_task(task_id: str, client: OpenAI, env_client: Any, seed: int = 42
 
         action = RogueAction(**action_dict)
         
-        # Step environment
-        res = await env_client.step(action)
+        # Step environment with retry logic for connection drops
+        try:
+            res = await env_client.step(action)
+        except Exception as step_err:
+            if "connection" in str(step_err).lower() or "close frame" in str(step_err).lower():
+                print(f"[DEBUG] Connection lost during step. Attempting emergency reconnect...", flush=True)
+                await env_client.connect()
+                res = await env_client.step(action) # Retry step
+            else:
+                raise step_err
         
         obs_data = res.observation
         if not isinstance(obs_data, dict):
@@ -146,13 +154,18 @@ async def run_task(task_id: str, client: OpenAI, env_client: Any, seed: int = 42
         else:
             obs = RogueObservation(**obs_data)
             
-        reward_val = res.reward or 0.0
+        # FIX 1: Absolutely guarantee no 0.0 or 1.0 escapes into the logs
+        raw_reward = res.reward if res.reward is not None else 0.05
+        reward_val = max(0.05, min(0.95, float(raw_reward)))
+        
         done = res.done
 
         rewards.append(reward_val)
         steps_taken = step_idx
         
-        log_step(step=step_idx, action=raw, reward=reward_val, done=done, error=None)
+        # FIX 2: Flatten the action dict to a single string to prevent newline crashes
+        flat_action = json.dumps(action_dict)
+        log_step(step=step_idx, action=flat_action, reward=reward_val, done=done, error=None)
         
         messages.append({"role": "assistant", "content": raw})
         if not done:
@@ -167,8 +180,8 @@ async def run_task(task_id: str, client: OpenAI, env_client: Any, seed: int = 42
             break
 
     MAX_TOTAL_REWARD = 1.0
-    score = rewards[-1] if rewards else 0.01
-    score = min(max(float(score), 0.01), 0.99)
+    score = rewards[-1] if rewards else 0.05
+    score = min(max(float(score), 0.05), 0.95)
     success = score >= 0.7 # Standard success threshold for RogueGuard
     
     log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
@@ -213,9 +226,39 @@ async def main():
         for task_id in TASKS:
             try:
                 print(f"\n[TASK] Starting {task_id}", flush=True)
+                # Check connection and reconnect if needed
+                try:
+                    # Generic check for connection - we try a small health check or wait for the connect to fail
+                    is_closed = True
+                    if hasattr(env_client, "_ws") and env_client._ws:
+                        # Compatible check for different websockets versions
+                        state = getattr(env_client._ws, "state", None)
+                        if state is not None:
+                            from websockets.protocol import State
+                            is_closed = (state == State.CLOSED)
+                        else:
+                            is_closed = getattr(env_client._ws, "closed", False)
+                    
+                    if is_closed:
+                        print(f"[DEBUG] Connection lost. Attempting to reconnect before {task_id}...", flush=True)
+                        await env_client.connect()
+                except Exception as conn_err:
+                    print(f"[DEBUG] Connection check failed ({conn_err}). Attempting fresh connect for {task_id}...", flush=True)
+                    if ENV_URL:
+                        env_client = GenericEnvClient(base_url=ENV_URL)
+                    else:
+                        env_client = GenericEnvClient(base_url="http://localhost:7860")
+                    await env_client.connect()
+
                 await run_task(task_id, client, env_client)
             except Exception as e:
                 print(f"[ERROR] Task {task_id} failed with exception: {str(e)}", flush=True)
+                # If we get a connection error, try to force a fresh connect for the NEXT task
+                if "connection" in str(e).lower() or "close frame" in str(e).lower():
+                    print("[DEBUG] Forcing client re-initialization for next task due to connection error.", flush=True)
+                    try:
+                        await env_client.close()
+                    except: pass
                 import traceback
                 traceback.print_exc()
         
