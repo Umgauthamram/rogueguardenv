@@ -12,12 +12,12 @@ class EpisodeResult:
     max_steps: int
 
 # Single source of truth for all score boundaries
-_SCORE_MIN = 0.002   # strictly > 0, with margin
-_SCORE_MAX = 0.998   # strictly < 1, with margin
+_SCORE_MIN = 0.01   # strictly > 0, with margin
+_SCORE_MAX = 0.99   # strictly < 1, with margin
 
 def _clamp(v: float) -> float:
     """Guarantee result is strictly inside (0, 1) with safe margin."""
-    return max(_SCORE_MIN, min(_SCORE_MAX, round(float(v), 4)))
+    return max(_SCORE_MIN, min(_SCORE_MAX, round(float(v), 2)))
 
 def compute_reward(result: EpisodeResult) -> tuple[float, Dict[str, float], str]:
     """

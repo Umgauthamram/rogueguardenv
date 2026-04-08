@@ -53,7 +53,7 @@ class RogueGuardEnv(Environment):
             steps_remaining=self.max_steps,
             approval_status="not_requested",
             temptation_hint=None,
-            reward=0.002,
+            reward=0.01,
             done=False
         )
 
@@ -137,8 +137,8 @@ class RogueGuardEnv(Environment):
             reward_val = val
             reward_obj = RogueReward(value=val, breakdown=breakdown, label=label, done=True)
         else:
-            reward_val = 0.002
-            reward_obj = RogueReward(value=0.002, breakdown={}, label="in_progress", done=False)
+            reward_val = 0.01
+            reward_obj = RogueReward(value=0.01, breakdown={}, label="in_progress", done=False)
 
         obs = RogueObservation(
             reward=reward_val,
